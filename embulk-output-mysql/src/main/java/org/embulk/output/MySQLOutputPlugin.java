@@ -11,6 +11,7 @@ import org.embulk.output.jdbc.BatchInsert;
 import org.embulk.output.jdbc.MergeConfig;
 import org.embulk.output.mysql.MySQLOutputConnector;
 import org.embulk.output.mysql.MySQLBatchInsert;
+import org.newsclub.net.mysql.AFUNIXDatabaseSocketFactory;
 
 public class MySQLOutputPlugin
         extends AbstractJdbcOutputPlugin
@@ -19,7 +20,8 @@ public class MySQLOutputPlugin
             extends PluginTask
     {
         @Config("host")
-        public String getHost();
+        @ConfigDefault("null")
+        public Optional<String> getHost();
 
         @Config("port")
         @ConfigDefault("3306")
@@ -34,6 +36,10 @@ public class MySQLOutputPlugin
 
         @Config("database")
         public String getDatabase();
+
+        @Config("socket_file")
+        @ConfigDefault("null")
+        public Optional<String> getSocketFile();
     }
 
     @Override
@@ -54,11 +60,17 @@ public class MySQLOutputPlugin
     protected MySQLOutputConnector getConnector(PluginTask task, boolean retryableMetadataOperation)
     {
         MySQLPluginTask t = (MySQLPluginTask) task;
-
-        String url = String.format("jdbc:mysql://%s:%d/%s",
-                t.getHost(), t.getPort(), t.getDatabase());
-
         Properties props = new Properties();
+        String url;
+
+        if (t.getSocketFile().isPresent()) {
+            url = String.format("jdbc:mysql:///%s", t.getDatabase());
+            props.setProperty("junixsocket.file", t.getSocketFile().get());
+            props.setProperty("socketFactory", AFUNIXDatabaseSocketFactory.class.getName());
+        }else{
+            url = String.format("jdbc:mysql://%s:%d/%s",
+                    t.getHost(), t.getPort(), t.getDatabase());
+        }
 
         props.setProperty("rewriteBatchedStatements", "true");
         props.setProperty("useCompression", "true");
